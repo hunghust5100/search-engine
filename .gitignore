@@ -1,0 +1,22 @@
+# Runtime data
+be/data/db/*
+!be/data/db/.gitkeep
+be/data/lucene-index/*
+!be/data/lucene-index/.gitkeep
+be/data/raw-docs/*
+!be/data/raw-docs/.gitkeep
+
+# Build outputs
+**/target/
+**/build/
+*.log
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
