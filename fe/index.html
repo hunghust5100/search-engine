@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUST Search Engine</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="container topbar-inner">
+            <div class="brand">
+                <span class="brand-badge">HUST</span>
+                <div>
+                    <h1>HUST Search Engine</h1>
+                    <p>Tìm kiếm toàn văn BM25 (Apache Lucene &amp; VnCoreNLP)</p>
+                </div>
+            </div>
+            <div class="api-config">
+                <label for="apiBase">Backend URL</label>
+                <input type="text" id="apiBase" value="http://localhost:8080" placeholder="http://localhost:8080">
+            </div>
+        </div>
+    </header>
+
+    <main class="container main-layout">
+        <!-- Cột trái: Tìm kiếm -->
+        <section class="search-panel">
+            <form id="searchForm" class="search-form">
+                <div class="search-row">
+                    <input
+                        type="text"
+                        id="queryInput"
+                        placeholder="Nhập từ khóa tìm kiếm (có dấu hoặc không dấu, vd: tuyển sinh đại học bách khoa)..."
+                        autocomplete="off"
+                        autofocus
+                    >
+                    <button type="submit" class="btn btn-primary" id="searchBtn">Tìm kiếm</button>
+                </div>
+
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label for="subdomainInput">Subdomain</label>
+                        <input
+                            type="text"
+                            id="subdomainInput"
+                            placeholder="Tất cả (vd: soict.hust.edu.vn)"
+                        >
+                    </div>
+                    <div class="filter-item filter-small">
+                        <label for="sizeSelect">Số kết quả / trang</label>
+                        <select id="sizeSelect">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+                    <div class="quick-tags">
+                        <span>Gợi ý:</span>
+                        <button type="button" class="chip" data-q="tuyển sinh đại học">tuyển sinh đại học</button>
+                        <button type="button" class="chip" data-q="dai hoc bach khoa ha noi">dai hoc bach khoa ha noi</button>
+                        <button type="button" class="chip" data-q="học bổng sinh viên">học bổng sinh viên</button>
+                    </div>
+                </div>
+            </form>
+
+            <div id="searchMeta" class="search-meta hidden"></div>
+            <div id="errorBox" class="alert alert-error hidden"></div>
+
+            <div id="resultsList" class="results-list">
+                <div class="empty-state">
+                    <p>Nhập từ khóa bên trên để bắt đầu tìm kiếm tài liệu trên <strong>*.hust.edu.vn</strong>.</p>
+                </div>
+            </div>
+
+            <div id="paginationBar" class="pagination hidden">
+                <button type="button" class="btn btn-outline" id="prevPageBtn">&larr; Trang trước</button>
+                <span id="pageIndicator" class="page-indicator">Trang 1</span>
+                <button type="button" class="btn btn-outline" id="nextPageBtn">Trang sau &rarr;</button>
+            </div>
+        </section>
+
+        <!-- Cột phải: Bảng điều khiển Crawler nhanh -->
+        <aside class="crawler-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Trạng thái Crawler</h2>
+                    <span id="crawlStateBadge" class="badge badge-idle">IDLE</span>
+                </div>
+                <p class="card-desc">Thu thập dữ liệu từ <code>*.hust.edu.vn</code> để đánh chỉ mục tìm kiếm.</p>
+
+                <div class="crawler-controls">
+                    <div class="form-group">
+                        <label for="seedUrlInput">Seed URL</label>
+                        <input type="text" id="seedUrlInput" value="https://hust.edu.vn">
+                    </div>
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="maxPagesInput">Max Pages</label>
+                            <input type="number" id="maxPagesInput" value="50" min="1" max="5000">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxDepthInput">Max Depth</label>
+                            <input type="number" id="maxDepthInput" value="2" min="0" max="10">
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-primary" id="startCrawlBtn">Start Crawl</button>
+                        <button type="button" class="btn btn-danger" id="stopCrawlBtn">Stop</button>
+                        <button type="button" class="btn btn-outline" id="refreshCrawlBtn">Làm mới</button>
+                    </div>
+                </div>
+
+                <dl class="stats-grid" id="crawlerStats">
+                    <div>
+                        <dt>Đã crawl</dt>
+                        <dd id="statCrawled">0</dd>
+                    </div>
+                    <div>
+                        <dt>Lỗi</dt>
+                        <dd id="statFailed">0</dd>
+                    </div>
+                    <div>
+                        <dt>Phát hiện</dt>
+                        <dd id="statDiscovered">0</dd>
+                    </div>
+                    <div>
+                        <dt>Hàng đợi</dt>
+                        <dd id="statQueued">0</dd>
+                    </div>
+                </dl>
+                <p id="crawlMessage" class="crawl-message"></p>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const apiBaseInput = document.getElementById('apiBase');
+        const searchForm = document.getElementById('searchForm');
+        const queryInput = document.getElementById('queryInput');
+        const subdomainInput = document.getElementById('subdomainInput');
+        const sizeSelect = document.getElementById('sizeSelect');
+        const searchMeta = document.getElementById('searchMeta');
+        const errorBox = document.getElementById('errorBox');
+        const resultsList = document.getElementById('resultsList');
+        const paginationBar = document.getElementById('paginationBar');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const pageIndicator = document.getElementById('pageIndicator');
+
+        let currentPage = 0;
+        let lastTotalHits = 0;
+
+        function getBaseUrl() {
+            const raw = apiBaseInput.value.trim();
+            if (!raw) {
+                return window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:8080';
+            }
+            return raw.replace(/\/+$/, '');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function sanitizeSnippet(snippet) {
+            if (!snippet) return '';
+            // Chỉ giữ lại thẻ <mark> và </mark> từ Lucene Highlighter
+            return escapeHtml(snippet)
+                .replace(/&lt;mark&gt;/gi, '<mark>')
+                .replace(/&lt;\/mark&gt;/gi, '</mark>');
+        }
+
+        async function performSearch(page = 0) {
+            const q = queryInput.value.trim();
+            const subdomain = subdomainInput.value.trim();
+            const size = parseInt(sizeSelect.value, 10) || 10;
+            currentPage = page;
+
+            errorBox.classList.add('hidden');
+            resultsList.innerHTML = '<div class="loading">Đang tìm kiếm trên Lucene Index...</div>';
+
+            const params = new URLSearchParams({
+                q,
+                page: String(page),
+                size: String(size)
+            });
+            if (subdomain) {
+                params.set('subdomain', subdomain);
+            }
+
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/search?${params.toString()}`);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.message || `HTTP ${res.status}`);
+                }
+
+                renderResults(data);
+            } catch (err) {
+                searchMeta.classList.add('hidden');
+                paginationBar.classList.add('hidden');
+                resultsList.innerHTML = '';
+                errorBox.textContent = `Không thể kết nối hoặc truy vấn API: ${err.message}`;
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        function renderResults(data) {
+            lastTotalHits = data.totalHits || 0;
+            const hits = Array.isArray(data.hits) ? data.hits : [];
+            const size = data.size || 10;
+            const totalPages = Math.max(1, Math.ceil(lastTotalHits / size));
+
+            searchMeta.innerHTML = `Tìm thấy <strong>${lastTotalHits}</strong> kết quả cho từ khóa <strong>"${escapeHtml(data.query || '')}"</strong>`
+                + (data.subdomain ? ` trên <code>${escapeHtml(data.subdomain)}</code>` : '')
+                + ` (${data.tookMs ?? 0} ms)`;
+            searchMeta.classList.remove('hidden');
+
+            if (hits.length === 0) {
+                resultsList.innerHTML = `
+                    <div class="empty-state">
+                        <p>Không tìm thấy tài liệu nào khớp với truy vấn.</p>
+                        <small>Hãy kiểm tra xem dữ liệu đã được crawl và đánh chỉ mục vào Lucene chưa.</small>
+                    </div>
+                `;
+                paginationBar.classList.add('hidden');
+                return;
+            }
+
+            resultsList.innerHTML = hits.map((hit) => {
+                const title = escapeHtml(hit.title || hit.url || 'Không có tiêu đề');
+                const url = escapeHtml(hit.url || '#');
+                const subdomain = escapeHtml(hit.subdomain || '');
+                const score = typeof hit.score === 'number' ? hit.score.toFixed(4) : hit.score;
+                const snippet = sanitizeSnippet(hit.snippet || hit.description || '');
+                const crawledDate = hit.crawledAt ? new Date(hit.crawledAt).toLocaleString('vi-VN') : '';
+
+                return `
+                    <article class="result-card">
+                        <div class="result-top">
+                            <span class="subdomain-pill">${subdomain}</span>
+                            <span class="score-pill" title="Điểm xếp hạng BM25">BM25: ${score}</span>
+                            ${crawledDate ? `<span class="date-text">${escapeHtml(crawledDate)}</span>` : ''}
+                        </div>
+                        <h3 class="result-title">
+                            <a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a>
+                        </h3>
+                        <a class="result-url" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>
+                        <p class="result-snippet">${snippet}</p>
+                    </article>
+                `;
+            }).join('');
+
+            pageIndicator.textContent = `Trang ${currentPage + 1} / ${totalPages}`;
+            prevPageBtn.disabled = currentPage <= 0;
+            nextPageBtn.disabled = (currentPage + 1) >= totalPages;
+            paginationBar.classList.remove('hidden');
+        }
+
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            performSearch(0);
+        });
+
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 0) {
+                performSearch(currentPage - 1);
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            performSearch(currentPage + 1);
+        });
+
+        document.querySelectorAll('.chip').forEach((chip) => {
+            chip.addEventListener('click', () => {
+                queryInput.value = chip.getAttribute('data-q') || '';
+                performSearch(0);
+            });
+        });
+
+        // --- Crawler panel logic ---
+        const crawlStateBadge = document.getElementById('crawlStateBadge');
+        const statCrawled = document.getElementById('statCrawled');
+        const statFailed = document.getElementById('statFailed');
+        const statDiscovered = document.getElementById('statDiscovered');
+        const statQueued = document.getElementById('statQueued');
+        const crawlMessage = document.getElementById('crawlMessage');
+
+        async function fetchCrawlerStatus() {
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/crawler/status`);
+                if (!res.ok) return;
+                const s = await res.json();
+                updateCrawlerUi(s);
+            } catch (_) {
+                crawlStateBadge.textContent = 'OFFLINE';
+                crawlStateBadge.className = 'badge badge-failed';
+            }
+        }
+
+        function updateCrawlerUi(s) {
+            const state = s.state || 'IDLE';
+            crawlStateBadge.textContent = state;
+            crawlStateBadge.className = `badge badge-${state.toLowerCase()}`;
+            statCrawled.textContent = s.pagesCrawled ?? 0;
+            statFailed.textContent = s.pagesFailed ?? 0;
+            statDiscovered.textContent = s.urlsDiscovered ?? 0;
+            statQueued.textContent = s.urlsQueued ?? 0;
+            crawlMessage.textContent = s.message || '';
+        }
+
+        document.getElementById('startCrawlBtn').addEventListener('click', async () => {
+            const seed = document.getElementById('seedUrlInput').value.trim();
+            const maxPages = parseInt(document.getElementById('maxPagesInput').value, 10) || 50;
+            const maxDepth = parseInt(document.getElementById('maxDepthInput').value, 10) || 2;
+
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/crawler/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        seedUrls: seed ? [seed] : undefined,
+                        maxPages,
+                        maxDepth
+                    })
+                });
+                const data = await res.json();
+                updateCrawlerUi(data);
+            } catch (err) {
+                crawlMessage.textContent = `Lỗi start crawler: ${err.message}`;
+            }
+        });
+
+        document.getElementById('stopCrawlBtn').addEventListener('click', async () => {
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/crawler/stop`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    updateCrawlerUi(data);
+                } else {
+                    crawlMessage.textContent = data.message || 'Không có tiến trình crawl nào đang chạy.';
+                }
+            } catch (err) {
+                crawlMessage.textContent = `Lỗi stop crawler: ${err.message}`;
+            }
+        });
+
+        document.getElementById('refreshCrawlBtn').addEventListener('click', fetchCrawlerStatus);
+
+        fetchCrawlerStatus();
+        setInterval(fetchCrawlerStatus, 4000);
+    </script>
+</body>
+</html>
