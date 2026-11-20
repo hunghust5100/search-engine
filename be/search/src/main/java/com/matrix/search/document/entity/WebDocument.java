@@ -29,7 +29,8 @@ import java.time.Instant;
         name = "web_documents",
         indexes = {
                 @Index(name = "idx_web_documents_subdomain", columnList = "subdomain"),
-                @Index(name = "idx_web_documents_indexed", columnList = "indexed")
+                @Index(name = "idx_web_documents_indexed", columnList = "indexed"),
+                @Index(name = "idx_web_documents_content_hash", columnList = "contentHash")
         }
 )
 public class WebDocument {
