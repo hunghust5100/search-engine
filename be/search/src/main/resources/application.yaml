@@ -32,6 +32,8 @@ app:
       allowed-domain-suffix: hust.edu.vn
       max-pages: 500
       max-depth: 4
+      threads: 8
+      respect-robots-txt: true
       delay-ms: 300
       timeout-ms: 10000
       user-agent: HustSearchBot/1.0

@@ -19,6 +19,8 @@ public class CrawlerConfig {
     private String allowedDomainSuffix = "hust.edu.vn";
     private int maxPages = 500;
     private int maxDepth = 4;
+    private int threads = 8;
+    private boolean respectRobotsTxt = true;
     private long delayMs = 300;
     private int timeoutMs = 10000;
     private String userAgent = "HustSearchBot/1.0";
