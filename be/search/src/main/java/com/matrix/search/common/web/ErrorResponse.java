@@ -18,15 +18,24 @@ public class ErrorResponse {
     private String message;
     private Instant timestamp;
 
+    public ErrorResponse() {
+    }
+
+    public ErrorResponse(int status, String error, String message, Instant timestamp) {
+        this.status = status;
+        this.error = error;
+        this.message = message;
+        this.timestamp = timestamp;
+    }
+
     /**
      * Builds an error response from an HTTP status and a human-readable message.
      */
     public static ErrorResponse of(HttpStatus httpStatus, String message) {
-        return ErrorResponse.builder()
-                .status(httpStatus.value())
-                .error(httpStatus.getReasonPhrase())
-                .message(message)
-                .timestamp(Instant.now())
-                .build();
+        return new ErrorResponse(
+                httpStatus.value(),
+                httpStatus.getReasonPhrase(),
+                message,
+                Instant.now());
     }
 }
